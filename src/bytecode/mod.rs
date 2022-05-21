@@ -42,7 +42,9 @@ impl ByteCode {
     fn add_instruction(&mut self, ctx: &mut Context, s_instr: &str) -> Result<(), String> {
         match Instruction::parse(ctx, s_instr) {
             Ok(instr) => {
-                self.instructions.push(instr);
+                if instr.opcode.is_some() {
+                    self.instructions.push(instr);
+                }
                 Ok(())
             }
             Err(e) => Err(e),
@@ -83,6 +85,7 @@ impl Visitor<Context> for Instruction {
         };
         self.opcode = Some(OpCodes::LOAD);
         self.args = Some(vec![arg1]);
+        ctx.instruction_number += 1;
         Ok(())
     }
     fn visit_wrt(&mut self, ctx: &mut Context) -> Result<(), String> {
@@ -103,6 +106,7 @@ impl Visitor<Context> for Instruction {
         };
         self.opcode = Some(OpCodes::WRT);
         self.args = Some(vec![address]);
+        ctx.instruction_number += 1;
         Ok(())
     }
     fn visit_read(&mut self, ctx: &mut Context) -> Result<(), String> {
@@ -121,6 +125,7 @@ impl Visitor<Context> for Instruction {
         }
         self.opcode = Some(OpCodes::READ);
         self.args = Some(vec![ctx.get_var(arg0).unwrap()]);
+        ctx.instruction_number += 1;
         Ok(())
     }
     fn visit_add(&mut self, ctx: &mut Context) -> Result<(), String> {
@@ -129,6 +134,7 @@ impl Visitor<Context> for Instruction {
         }
         self.opcode = Some(OpCodes::ADD);
         self.args = None;
+        ctx.instruction_number += 1;
         Ok(())
     }
     fn visit_mult(&mut self, ctx: &mut Context) -> Result<(), String> {
@@ -137,6 +143,7 @@ impl Visitor<Context> for Instruction {
         }
         self.opcode = Some(OpCodes::MULT);
         self.args = None;
+        ctx.instruction_number += 1;
         Ok(())
     }
     fn visit_rtn(&mut self, ctx: &mut Context) -> Result<(), String> {
@@ -145,6 +152,68 @@ impl Visitor<Context> for Instruction {
         }
         self.opcode = Some(OpCodes::RTN);
         self.args = None;
+        ctx.instruction_number += 1;
+        Ok(())
+    }
+    fn visit_test_eq(&mut self, ctx: &mut Context) -> Result<(), String> {
+        if ctx.args_len() != 0 {
+            return Err(format!("expected 0 arguments, got {}", ctx.args_len()));
+        }
+        self.opcode = Some(OpCodes::TEEQ);
+        self.args = None;
+        ctx.instruction_number += 1;
+        Ok(())
+    }
+    fn visit_test_gt(&mut self, ctx: &mut Context) -> Result<(), String> {
+        if ctx.args_len() != 0 {
+            return Err(format!("expected 0 arguments, got {}", ctx.args_len()));
+        }
+        self.opcode = Some(OpCodes::TEGT);
+        self.args = None;
+        ctx.instruction_number += 1;
+        Ok(())
+    }
+    fn visit_test_lt(&mut self, ctx: &mut Context) -> Result<(), String> {
+        if ctx.args_len() != 0 {
+            return Err(format!("expected 0 arguments, got {}", ctx.args_len()));
+        }
+        self.opcode = Some(OpCodes::TELT);
+        self.args = None;
+        ctx.instruction_number += 1;
+        Ok(())
+    }
+    fn visit_goto(&mut self, ctx: &mut Context) -> Result<(), String> {
+        if ctx.args_len() != 1 {
+            return Err(format!("expected 1 argument, got {}", ctx.args_len()));
+        }
+        let arg0 = ctx.get_arg(0).unwrap();
+        if !Context::is_label(arg0) {
+            return Err(format!("invalid label name `{}`", arg0));
+        }
+        if !ctx.has_label(arg0) {
+            return Err(format!("undeclared label `{}`", arg0));
+        }
+        self.opcode = Some(OpCodes::GOTO);
+        self.args = Some(vec![ctx.get_label(arg0)]);
+        ctx.instruction_number += 1;
+        Ok(())
+    }
+    fn visit_dup(&mut self, ctx: &mut Context) -> Result<(), String> {
+        if ctx.args_len() != 0 {
+            return Err(format!("expected 0 arguments, got {}", ctx.args_len()));
+        }
+        self.opcode = Some(OpCodes::DUP);
+        self.args = None;
+        ctx.instruction_number += 1;
+        Ok(())
+    }
+    fn visit_pop(&mut self, ctx: &mut Context) -> Result<(), String> {
+        if ctx.args_len() != 0 {
+            return Err(format!("expected 0 arguments, got {}", ctx.args_len()));
+        }
+        self.opcode = Some(OpCodes::POP);
+        self.args = None;
+        ctx.instruction_number += 1;
         Ok(())
     }
 }
@@ -164,7 +233,7 @@ mod tests {
                 None => "".to_string(),
             };
             format!(
-                "0x{:02x} {}",
+                "0x{:02X} {}",
                 self.opcode.expect("Illegal instruction: empty opcode") as u8,
                 args
             )
@@ -374,6 +443,193 @@ mod tests {
     }
 
     #[test]
+    fn add_test_gt_instruction() {
+        let code = "TEST_GT";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert!(result.is_ok());
+        let bytecode = result.ok().unwrap();
+        assert_eq!(bytecode.instructions.len(), 1);
+        assert_eq!(bytecode.instructions[0].to_string(), "0x07");
+    }
+
+    #[test]
+    fn add_test_gt_invalid_arg_num_instruction() {
+        let code = "TEST_GT 1";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 0 arguments, got 1".to_string())
+        );
+    }
+
+    #[test]
+    fn add_test_lt_instruction() {
+        let code = "TEST_LT";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert!(result.is_ok());
+        let bytecode = result.ok().unwrap();
+        assert_eq!(bytecode.instructions.len(), 1);
+        assert_eq!(bytecode.instructions[0].to_string(), "0x08");
+    }
+
+    #[test]
+    fn add_test_lt_invalid_arg_num_instruction() {
+        let code = "TEST_LT 1";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 0 arguments, got 1".to_string())
+        );
+    }
+
+    #[test]
+    fn add_test_eq_instruction() {
+        let code = "TEST_EQ";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert!(result.is_ok());
+        let bytecode = result.ok().unwrap();
+        assert_eq!(bytecode.instructions.len(), 1);
+        assert_eq!(bytecode.instructions[0].to_string(), "0x09");
+    }
+
+    #[test]
+    fn add_test_eq_invalid_arg_num_instruction() {
+        let code = "TEST_EQ 1";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 0 arguments, got 1".to_string())
+        );
+    }
+
+    #[test]
+    fn add_goto_instruction() {
+        let code = "&label\nGOTO &label";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert!(result.is_ok());
+        let bytecode = result.ok().unwrap();
+        assert_eq!(bytecode.instructions.len(), 1);
+        assert_eq!(bytecode.instructions[0].to_string(), "0x0A 0x00");
+    }
+
+    #[test]
+    fn add_goto_undeclared_instruction() {
+        let code = "GOTO &label";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: undeclared label `&label`".to_string())
+        );
+    }
+
+    #[test]
+    fn add_goto_invalid_label_instruction() {
+        let code = "GOTO #label";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: invalid label name `#label`".to_string())
+        );
+    }
+
+    #[test]
+    fn add_goto_no_label_instruction() {
+        let code = "GOTO";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 1 argument, got 0".to_string())
+        );
+    }
+
+    #[test]
+    fn add_goto_invalid_arg_num_instruction() {
+        let code = "GOTO label lb";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 1 argument, got 2".to_string())
+        );
+    }
+
+    #[test]
+    fn add_invalid_label_instruction() {
+        let code = "&#label";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: unknown instruction: &#label".to_string())
+        );
+    }
+
+    #[test]
+    fn add_duplicated_label_instruction() {
+        let code = "&label\nADD\n&label\nADD";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 3: duplicated label: &label".to_string())
+        );
+    }
+
+    #[test]
+    fn add_dup_instruction() {
+        let code = "DUP";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert!(result.is_ok());
+        let bytecode = result.ok().unwrap();
+        assert_eq!(bytecode.instructions.len(), 1);
+        assert_eq!(bytecode.instructions[0].to_string(), "0x0B");
+    }
+
+    #[test]
+    fn add_dup_invalid_arg_num_instruction() {
+        let code = "DUP 1";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 0 arguments, got 1".to_string())
+        );
+    }
+
+    #[test]
+    fn add_pop_instruction() {
+        let code = "POP";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert!(result.is_ok());
+        let bytecode = result.ok().unwrap();
+        assert_eq!(bytecode.instructions.len(), 1);
+        assert_eq!(bytecode.instructions[0].to_string(), "0x0C");
+    }
+
+    #[test]
+    fn add_pop_invalid_arg_num_instruction() {
+        let code = "POP 1";
+        let mut reader = BufReader::new(code.as_bytes());
+        let result = ByteCode::do_transpile(&mut reader);
+        assert_eq!(
+            result,
+            Err("Transpilation error at line 1: expected 0 arguments, got 1".to_string())
+        );
+    }
+
+    #[test]
     fn add_unknown_instruction() {
         let code = "NONEXISTENT_OP";
         let mut reader = BufReader::new(code.as_bytes());
@@ -381,7 +637,7 @@ mod tests {
         assert_eq!(
             result,
             Err(format!(
-                "Transpilation error at line 1: unknown opcode: {}",
+                "Transpilation error at line 1: unknown instruction: {}",
                 code
             ))
         );

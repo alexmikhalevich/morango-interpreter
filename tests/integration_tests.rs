@@ -33,6 +33,141 @@ pub fn test_simple_program() {
 }
 
 #[test]
+pub fn test_loop_program() {
+    let mut file = NamedTempFile::new().expect("Failed to create temp file");
+    /*
+     * x = 20
+     * for i = 0 to 10:
+     *  x += 1
+     * return x
+     */
+    let code = concat!(
+        "LOAD_VAL 20\n",
+        "WRITE_VAR x\n",
+        "LOAD_VAL 0\n",
+        "&label\n",
+        "LOAD_VAL 1\n",
+        "READ_VAR x\n",
+        "ADD\n",
+        "WRITE_VAR x\n",
+        "LOAD_VAL 1\n",
+        "ADD\n",
+        "DUP\n",
+        "LOAD_VAL 10\n",
+        "TEST_GT\n",
+        "GOTO &label\n",
+        "READ_VAR x\n",
+        "RETURN_VALUE\n",
+    );
+    write!(file, "{}", code).expect("Failed to write to temp file");
+
+    let result = interpret(
+        file.path()
+            .to_str()
+            .expect("Failed to convert temp file path to string"),
+    );
+    assert!(result.is_ok());
+    assert!(result.as_ref().ok().is_some());
+    assert_eq!(result.ok().unwrap().unwrap() as u16, 30);
+}
+
+#[test]
+pub fn test_nested_loop_program() {
+    let mut file = NamedTempFile::new().expect("Failed to create temp file");
+    /*
+     * x = 20
+     * y = 0
+     * for i = 0 to 10:
+     *  x += 1
+     *  for j = 1 to 3:
+     *   y += 1
+     * return x * y
+     */
+    let code = concat!(
+        "LOAD_VAL 20\n",
+        "WRITE_VAR x\n",
+        "LOAD_VAL 0\n",
+        "WRITE_VAR y\n",
+        "LOAD_VAL 0\n",
+        "&outer\n",
+        "LOAD_VAL 1\n",
+        "READ_VAR x\n",
+        "ADD\n",
+        "WRITE_VAR x\n",
+        "LOAD_VAL 1\n",
+        "&inner\n",
+        "LOAD_VAL 1\n",
+        "READ_VAR y\n",
+        "ADD\n",
+        "WRITE_VAR y\n",
+        "LOAD_VAL 1\n",
+        "ADD\n",
+        "DUP\n",
+        "LOAD_VAL 3\n",
+        "TEST_GT\n",
+        "GOTO &inner\n",
+        "POP\n",
+        "LOAD_VAL 1\n",
+        "ADD\n",
+        "DUP\n",
+        "LOAD_VAL 10\n",
+        "TEST_GT\n",
+        "GOTO &outer\n",
+        "READ_VAR x\n",
+        "READ_VAR y\n",
+        "MULTIPLY\n",
+        "RETURN_VALUE\n",
+    );
+    write!(file, "{}", code).expect("Failed to write to temp file");
+
+    let result = interpret(
+        file.path()
+            .to_str()
+            .expect("Failed to convert temp file path to string"),
+    );
+    assert!(result.is_ok());
+    assert!(result.as_ref().ok().is_some());
+    assert_eq!(result.ok().unwrap().unwrap() as u16, 600);
+}
+
+#[test]
+#[should_panic]
+pub fn test_overflow() {
+    let mut file = NamedTempFile::new().expect("Failed to create temp file");
+    /*
+     * x = 20
+     * while 1 < 10:
+     *  x += 1
+     * return x
+     */
+    let code = concat!(
+        "LOAD_VAL 20\n",
+        "WRITE_VAR x\n",
+        "LOAD_VAL 0\n",
+        "&label\n",
+        "LOAD_VAL 1\n",
+        "READ_VAR x\n",
+        "ADD\n",
+        "WRITE_VAR x\n",
+        "LOAD_VAL 1\n",
+        "ADD\n",
+        "LOAD_VAL 1\n",
+        "LOAD_VAL 10\n",
+        "TEST_GT\n",
+        "GOTO &label\n",
+        "READ_VAR x\n",
+        "RETURN_VALUE\n",
+    );
+    write!(file, "{}", code).expect("Failed to write to temp file");
+
+    let _ret = interpret(
+        file.path()
+            .to_str()
+            .expect("Failed to convert temp file path to string"),
+    );
+}
+
+#[test]
 pub fn test_early_return() {
     let mut file = NamedTempFile::new().expect("Failed to create temp file");
     let code = concat!(

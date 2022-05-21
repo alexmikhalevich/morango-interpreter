@@ -29,7 +29,23 @@ impl Instruction {
             "ADD" => instr.visit_add(ctx),
             "MULTIPLY" => instr.visit_mult(ctx),
             "RETURN_VALUE" => instr.visit_rtn(ctx),
-            _ => Err(format!("unknown opcode: {}", &s_split[0])),
+            "GOTO" => instr.visit_goto(ctx),
+            "TEST_EQ" => instr.visit_test_eq(ctx),
+            "TEST_GT" => instr.visit_test_gt(ctx),
+            "TEST_LT" => instr.visit_test_lt(ctx),
+            "DUP" => instr.visit_dup(ctx),
+            "POP" => instr.visit_pop(ctx),
+            other => {
+                if Context::is_label(other) {
+                    if ctx.has_label(&s_split[0]) {
+                        Err(format!("duplicated label: {}", s_split[0]))?;
+                    }
+                    ctx.add_label(&s_split[0], ctx.instruction_number);
+                } else {
+                    Err(format!("unknown instruction: {}", &s_split[0]))?;
+                }
+                return Ok(instr);
+            }
         }?;
         Ok(instr)
     }
