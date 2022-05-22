@@ -22,7 +22,7 @@ You can run tests by executing `cargo test`.
 - `TEST_GT`: pops two values from the stack, pushes `1` if the first poped value is greater than the second, `0` otherwise;
 - `TEST_LT`: pops two values from the stack, pushes `1` if the first poped value is less than the second, `0` otherwise;
 - `&<label name>`: declares a label `<label name>`;
-- `GOTO &<label name>`: moves the instruction pointer to the label `<label name>`;
+- `GOTO &<label name>`: pops value from the stack, if the poped value is `1` - moves the instruction pointer to the label `<label name>`;
 - `RETURN_VALUE`: pops value from the stack and exits the program returning the poped value.
 
 ## Examples
